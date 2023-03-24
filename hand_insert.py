@@ -1,6 +1,6 @@
 import logging
 
-from torotheme import Torotheme
+from toroplay import Toroplay
 
 film_data = {
     "title": "Game Of Thrones - Season 1",
@@ -137,7 +137,7 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s", level=loggin
 
 
 def main():
-    Torotheme(film_data, episodes_data).insert_film()
+    Toroplay(film_data, episodes_data).insert_film()
 
 
 if __name__ == "__main__":

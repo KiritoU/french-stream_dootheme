@@ -13,9 +13,9 @@ if __name__ == "__main__":
     while True:
         try:
             crawled_page = crawler.crawl_page(
-                f"{CONFIG.SERIES9_TVSERIES_LATEST_PAGE}?page={i}"
+                f"{CONFIG.FRENCH_STREAM_SERIES}/page/{i}/"
             )
-            if not crawled_page and i >= CONFIG.SERIES9_TVSERIES_LATEST_PAGE:
+            if not crawled_page and i >= CONFIG.FRENCH_STREAM_SERIES_LAST_PAGE:
                 i = 2
             else:
                 i += 1

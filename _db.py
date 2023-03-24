@@ -1,6 +1,7 @@
 import sys
 
 import mysql.connector
+from mysql.connector.pooling import MySQLConnectionPool
 
 from settings import CONFIG
 
@@ -39,15 +40,19 @@ class Database:
 
         return res
 
-    def insert_into(self, table: str, data: tuple = None):
+    def insert_into(self, table: str, data: tuple = None, is_bulk: bool = False):
         conn = self.get_conn()
         cur = conn.cursor()
+        id = 0
 
         columns = f"({', '.join(CONFIG.INSERT[table])})"
         values = f"({', '.join(['%s'] * len(CONFIG.INSERT[table]))})"
         query = f"INSERT INTO {table} {columns} VALUES {values}"
-        cur.execute(query, data)
-        id = cur.lastrowid
+        if is_bulk:
+            cur.executemany(query, data)
+        else:
+            cur.execute(query, data)
+            id = cur.lastrowid
 
         conn.commit()
         cur.close()
@@ -74,7 +79,7 @@ class Database:
 
     def select_or_insert(self, table: str, condition: str, data: tuple):
         res = self.select_all_from(table=table, condition=condition)
-        if not res[0]:
+        if not res:
             self.insert_into(table, data)
             res = self.select_all_from(table, condition=condition)
         return res

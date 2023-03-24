@@ -1,16 +1,20 @@
 import base64
+import os
+import subprocess
 from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 from time import sleep
 
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from phpserialize import serialize
 from slugify import slugify
 
-from _db import database
 from settings import CONFIG
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class Helper:
@@ -40,6 +44,61 @@ class Helper:
     def format_slug(self, slug: str) -> str:
         return slug.replace("’", "").replace("'", "")
 
+    def get_server_link(
+        self,
+        data_name: str,
+        data_hash: str,
+        data_episode: str,
+        id_or_episode: str = "episode",
+    ):
+        field_ajaxs_mod = "field_ajax" if id_or_episode == "id" else "field_ajaxs"
+        if Path(CONFIG.GETTED_SERVER_LINKS_FILE).is_file():
+            grep_command = [
+                "grep",
+                f"{data_hash}|{data_name}|{data_episode}",
+                CONFIG.GETTED_SERVER_LINKS_FILE,
+            ]
+            result = subprocess.run(grep_command, capture_output=True, text=True)
+
+            if result.returncode == 0:
+                getted_line = result.stdout.strip("\n").strip()
+                print("getting from getted links...")
+                return getted_line.split("|")[-1]
+
+        cookies = {
+            # "PHPSESSID": "81rpgnlkfl6crm9a7mtg28th11",
+            "PHPSESSID": "qr9vgmeqknhtgpmcr0hcfkvnln",
+        }
+
+        headers = {
+            "Host": "cpasmieux.monster",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0",
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://cpasmieux.monster/459-skam-france-6pn5v/11-saison/2-episode.html",
+            "Content-Type": "multipart/form-data; boundary=---------------------------1149058786588452436175068339",
+            "Origin": "https://cpasmieux.monster",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+        }
+
+        data = f"""-----------------------------1149058786588452436175068339\r\nContent-Disposition: form-data; name="mod"\r\n\r\nx{field_ajaxs_mod}\r\n-----------------------------1149058786588452436175068339\r\nContent-Disposition: form-data; name="name"\r\n\r\n{data_name}\r\n-----------------------------1149058786588452436175068339\r\nContent-Disposition: form-data; name="hash"\r\n\r\n{data_hash}\r\n-----------------------------1149058786588452436175068339\r\nContent-Disposition: form-data; name="{id_or_episode}"\r\n\r\n{data_episode}\r\n-----------------------------1149058786588452436175068339--\r\n"""
+
+        response = requests.post(
+            "https://cpasmieux.monster/engine/ajax/controller.php",
+            cookies=cookies,
+            headers=headers,
+            data=data,
+            verify=False,
+        )
+
+        link = response.text
+        cmd = f"""echo "{"|".join([data_hash, data_name, data_episode, link])}" >> {CONFIG.GETTED_SERVER_LINKS_FILE}"""
+        os.system(cmd)
+
+        return link
+
     def add_https_to(self, url: str) -> str:
         if not url:
             return url
@@ -50,6 +109,7 @@ class Helper:
         return url
 
     def get_trailer_id(self, soup: BeautifulSoup) -> str:
+        return ""
         scripts = soup.find_all("script")
         for script in scripts:
             str_script = str(script)
@@ -58,8 +118,6 @@ class Helper:
                 for s in splitted:
                     if "https" in s:
                         return s.split("/")[-1]
-
-        return ""
 
     def get_watching_href_and_fondo(self, soup: BeautifulSoup) -> list:
         try:
@@ -112,22 +170,13 @@ class Helper:
             self.get_season_number(self.format_text(season_number)),
         ]
 
-    def get_title_and_description(self, soup: BeautifulSoup) -> list:
+    def get_description_from(self, fmain: BeautifulSoup) -> str:
         try:
-            mvi_content = soup.find("div", class_="mvi-content")
-            mvic_desc = mvi_content.find("div", class_="mvic-desc")
-
-            title = mvic_desc.find("h3").text
-            desc = mvic_desc.find("div", class_="desc").text
-
-            return [self.format_text(title), self.format_text(desc)]
+            fdesc = fmain.find("div", class_="fdesc")
+            return fdesc.text
 
         except Exception as e:
-            self.error_log(
-                msg=f"Failed to find title and description\n{str(soup)}\n{e}",
-                log_file="helper.get_title_and_description.log",
-            )
-            return ["", ""]
+            return ""
 
     def get_poster_url(self, soup: BeautifulSoup) -> str:
         try:
@@ -177,27 +226,22 @@ class Helper:
             res["Duration"] = res["Duration"].replace("min", "").strip()
         return res
 
-    def get_extra_info(self, soup: BeautifulSoup) -> dict:
-        mvici_data = {}
+    def get_extra_info_from(self, fmain: BeautifulSoup) -> dict:
+        extra_info = {}
         try:
-            mvi_content = soup.find("div", class_="mvi-content")
-            mvic_desc = mvi_content.find("div", class_="mvic-desc")
-            mvic_info = mvic_desc.find("div", class_="mvic-info")
-            mvici_left = mvic_info.find("div", class_="mvici-left")
-            mvici_left_data = self.get_left_data(mvici_left)
+            flist = fmain.find("div", class_="flist")
+            lis = flist.find_all("li")
+            for li in lis:
+                key = li.find("span").text
+                value = li.text.replace(key, "").strip()
 
-            mvici_right = mvic_info.find("div", class_="mvici-right")
-            mvici_right_data = self.get_right_data(mvici_right)
-
-            mvici_data = {**mvici_left_data, **mvici_right_data}
+                key = key.replace(":", "").strip()
+                extra_info[key] = value
 
         except Exception as e:
-            self.error_log(
-                msg=f"Failed to get extra info\n{str(soup)}\n{e}",
-                log_file="helper.get_extra_info.log",
-            )
+            pass
 
-        return mvici_data
+        return extra_info
 
     def generate_film_data(
         self,
@@ -313,15 +357,15 @@ class Helper:
                     table=f"{CONFIG.TABLE_PREFIX}terms",
                     data=(term, slugify(term), 0),
                 )
-                termIds = [term_id, True]
                 term_taxonomy_id = database.insert_into(
                     table=f"{CONFIG.TABLE_PREFIX}term_taxonomy",
                     data=(term_id, taxonomy, "", 0, 0),
                 )
+                termIds = [term_taxonomy_id, True]
             else:
                 term_taxonomy_id = be_term[0][0]
                 term_id = be_term[0][1]
-                termIds = [term_id, False]
+                termIds = [term_taxonomy_id, False]
 
             try:
                 database.insert_into(

@@ -12,9 +12,7 @@ crawler = Crawler()
 if __name__ == "__main__":
     while True:
         try:
-            crawler.crawl_page(
-                url=CONFIG.SERIES9_MOVIES_LATEST_PAGE, post_type="movies"
-            )
+            crawler.crawl_page(url=CONFIG.FRENCH_STREAM_MOVIES, post_type="movies")
         except Exception as e:
             pass
         time.sleep(CONFIG.WAIT_BETWEEN_LATEST)

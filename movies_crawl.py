@@ -13,10 +13,10 @@ if __name__ == "__main__":
     while True:
         try:
             crawled_page = crawler.crawl_page(
-                f"{CONFIG.SERIES9_MOVIES_LATEST_PAGE}?page={i}",
+                f"{CONFIG.FRENCH_STREAM_MOVIES}/page/{i}/",
                 post_type="movies",
             )
-            if not crawled_page and i >= CONFIG.SERIES9_MOVIES_LATEST_PAGE:
+            if not crawled_page and i >= CONFIG.FRENCH_STREAM_MOVIES:
                 i = 2
             else:
                 i += 1
