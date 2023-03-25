@@ -829,7 +829,7 @@ class Dootheme:
                 self.insert_postmeta(episode_postmeta)
 
     def insert_season(self, post_id: int):
-        season_name = self.film["post_title"] + ": Season " + self.film["season_number"]
+        season_name = self.film["post_title"] + ": Saison " + self.film["season_number"]
         condition_post_title = season_name.replace("'", "''")
         condition = f"""post_title = '{condition_post_title}' AND post_type='seasons'"""
         be_post = database.select_all_from(
